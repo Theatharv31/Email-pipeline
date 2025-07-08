@@ -7,12 +7,8 @@ A FastAPI service that ingests email metadata, enriches it with mock security si
 ## 1. Endpoints
 
 - _POST_ /ingest
-
-  - _Header:_
-
-    x-api-key: SuperSecretApiKey123
-
-  - _Body (JSON):_
+  - Header: x-api-key: SuperSecretApiKey123
+  - Body (JSON):
     json
     {
     "sender": "user@example.com",
@@ -20,13 +16,10 @@ A FastAPI service that ingests email metadata, enriches it with mock security si
     "timestamp": "2025-07-08T12:00:00",
     "links": ["https://example.com/path"]
     }
-  - _Response:_  
-    Saved record with id and all submitted fields.
-
+  - Returns saved record with id.
 - _GET_ /signals
-  - No authentication required.
-  - _Response:_  
-    List of processed signals:
+  - No auth.
+  - Returns list of processed signals:
     json
     [
     {
@@ -44,9 +37,9 @@ A FastAPI service that ingests email metadata, enriches it with mock security si
 
 - _Language & Framework:_ Python 3.11, FastAPI
 - _ORM:_ SQLAlchemy
-- _Database:_ MySQL 8.0 (via Docker)
-- _Containerization:_ Docker & Docker Compose
-- _Authentication:_ API‑key (header)
+- _DB:_ MySQL 8.0 (via Docker)
+- _Containerization:_ Docker, Docker Compose
+- _Auth:_ API‑key (header)
 - _Validation:_ Pydantic v2 models
 - _Background Jobs:_ FastAPI BackgroundTasks
 
@@ -58,118 +51,123 @@ bash
 git clone https://github.com/Theatharv31/Email-pipeline.git
 cd Email-pipeline
 
-# Build & start services
+# Build & start
 
 docker-compose up --build
 
-# MySQL → localhost:3308
+# Service running:
 
-# FastAPI → localhost:8000
+# - MySQL on localhost:3308
 
-# Open Swagger UI:
+# - FastAPI on localhost:8000
 
-http://localhost:8000/docs
+# Swagger UI: http://localhost:8000/docs
 
-# To stop and remove containers:
-
+To stop
 docker-compose down
 
-## 4. Run without Docker
+4. Run Locally (without Docker)
+   Create & activate virtual environment
 
 bash
+Copy
+Edit
 python -m venv venv
 source venv/bin/activate # Windows: venv\Scripts\activate
 pip install -r requirements.txt
+Prepare database
 
-# Prepare Database
+Start a local MySQL instance (or configure an existing one).
 
-DB*HOST=localhost
+Create .env file in project root:
+
+env
+Copy
+Edit
+DB_HOST=localhost
 DB_USER=es_user
-DB_PASS=Atharv*#####
+DB_PASS=Atharv_test
 DB_NAME=email_signals
 API_KEY=SuperSecretApiKey123
+Run migrations & tables
+Tables will auto-create on startup via SQLAlchemy’s Base.metadata.create_all().
 
-# Run Application
+Start FastAPI
 
+bash
+Copy
+Edit
 uvicorn api:app --reload --host 0.0.0.0 --port 8000
+Access docs
 http://localhost:8000/docs
 
-bash
+5. File Structure
+   bash
+   Copy
+   Edit
+   .
+   ├── api.py # FastAPI app, endpoints, auth, startup logic
+   ├── db.py # Loads .env, sets up engine, SessionLocal, Base
+   ├── models.py # ORM models: EmailRaw, EmailSignal
+   ├── processing.py # Pydantic schemas + process_signals business logic
+   ├── requirements.txt # Python dependencies (incl. cryptography)
+   ├── Dockerfile # Python 3.11 image, installs deps, runs Uvicorn
+   ├── docker-compose.yml # Defines MySQL & app services with healthcheck
+   └── README.md # This documentation
+6. File Responsibilities & Logic
+   api.py
 
-## File Struture
+Defines app = FastAPI(...)
 
-bash
-.
-├── api.py # FastAPI app, endpoints, auth, startup logic
-├── db.py # Loads .env, sets up engine, SessionLocal, Base
-├── models.py # ORM models: EmailRaw, EmailSignal
-├── processing.py # Pydantic schemas + "process_signals" logic
-├── requirements.txt # Python dependencies (incl. cryptography)
-├── Dockerfile # Python image, installs deps, runs Uvicorn
-├── docker-compose.yml # Defines MySQL & app services with healthcheck
-└── README.md # This documentation
+/ingest: stores raw email, triggers BackgroundTasks
 
-```bash
+/signals: returns enriched data
 
----
+db.py
 
-## 6. 📂 File Responsibilities & Logic
+Uses python-dotenv to load DB credentials
 
-### api.py
-- Initializes app = FastAPI(...)
-- Defines:
-  - POST /ingest: Stores raw email metadata, triggers background task
-  - GET /signals: Returns enriched email security signals
-- Handles API key validation using FastAPI Header
-- Uses BackgroundTasks for async processing
+Creates SQLAlchemy engine, SessionLocal, and Base
 
-### db.py
-- Loads DB credentials using python-dotenv
-- Sets up:
-  - SQLAlchemy engine
-  - SessionLocal
-  - Declarative Base
+models.py
 
-### models.py
-- *EmailRaw*: stores raw email input (sender, subject, links, timestamp)
-- *EmailSignal*: stores computed security signals (domain_reputation, url_entropy, spoof_check)
+EmailRaw: raw email metadata table
 
-### processing.py
-- *Pydantic Schemas*:
-  - EmailIn: Input schema
-  - EmailOut: Output schema with id
-- *Signal Processing Logic*:
-  - Domain reputation lookup from mock table
-  - URL path entropy calculation (Shannon entropy)
-  - Simple spoof check based on sender domain
-  - Writes results into email_signals table
+EmailSignal: processed security signals table
 
-### Dockerfile & docker-compose.yml
-- Dockerfile:
-  - Based on python:3.11-slim
-  - Installs dependencies and runs uvicorn server
-- Compose file:
-  - Spins up MySQL + API container
-  - Uses healthchecks to ensure DB is ready before app starts
+processing.py
 
----
+Schemas: EmailIn, EmailOut (Pydantic)
 
-## 7. 🔐 API Security & ⚡ Scalability
+Logic: process_signals(db, raw)
 
-### ✅ Security
-- Uses x-api-key header for /ingest to restrict access
-- Payloads are validated via *Pydantic*
-- Can be extended with:
-  - *HTTPS/TLS* for encrypted transport
-  - *Rate limiting* (e.g., with Kong or Traefik)
-  - *OAuth2 / JWT* for token-based authentication
+Mock domain reputation lookup
 
-### 🚀 Scalability
-- *Stateless API app* – can be scaled horizontally with load balancers
-- Background processing can scale by:
-  - Migrating to *Celery + Redis*
-  - Or using *Temporal* for advanced workflow orchestration
-- *Database scaling* options:
-  - Migrate to *managed RDS (e.g. AWS/Aurora)*
-  - *Sharding* or *read replicas* for performance at scale
-```
+URL path entropy calculation
+
+Simple spoof check
+
+Saves results to email_signals table
+
+Dockerfile & docker-compose.yml
+
+Containerize app & MySQL
+
+Healthcheck ensures DB readiness before app startup
+
+7. API Security & Scalability
+   Security
+
+API‑key header (x-api-key) for /ingest
+
+Pydantic validation prevents malformed input
+
+Further enhancements: HTTPS/TLS, rate‑limiting (e.g. Kong), OAuth2/JWT
+
+Scalability
+
+Stateless FastAPI can scale horizontally behind a load balancer
+
+BackgroundTasks can migrate to Celery/Redis or Temporal for robust orchestration
+
+Database can be managed by RDS/Aurora or sharded for high availability
