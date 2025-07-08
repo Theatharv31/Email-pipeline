@@ -52,6 +52,7 @@ def ingest_email(
 
 # route to get all signals
 
+
 @app.get("/signals")
 def get_signals(db: Session = Depends(get_db)):
     signals = db.query(models.EmailSignal).all()
